@@ -16,7 +16,10 @@
             .ToListAsync();
 
         public async Task<List<TaskItem>> GetByIdAsync(int userId)
-            => await _context.TaskItems.Where(i => i.Doer != null && i.Doer.Id == userId)
+            => await _context.TaskItems
+            .Where(i => i.Doer != null && i.Doer.Id == userId)
+            .Include(i => i.Doer)
+            .Include(i => i.Group)
             .ToListAsync();
 
         public async Task<TaskItem?> GetBySpecifiedIdAsync(int userId, int specifiedId)
