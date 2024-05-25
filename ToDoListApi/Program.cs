@@ -10,11 +10,6 @@ builder.Services.AddDbContext<TasksDb>(options =>
 builder.Services.AddScoped<IRepository<User>, UserRepository>();
 builder.Services.AddScoped<IRepository<TaskGroup>, TaskGroupRepository>();
 builder.Services.AddScoped<IRepository<TaskItem>, TaskItemRepository>();
-JsonSerializerOptions options = new()
-{
-    ReferenceHandler = ReferenceHandler.IgnoreCycles,
-    WriteIndented = true
-};
 
 var app = builder.Build();
 
@@ -64,8 +59,8 @@ app.MapPut("/users", async (IRepository<User> repository, [FromBody] User user) 
         return Results.NoContent();
     })
     .Accepts<User>("application/json")
-    .Produces<bool>(StatusCodes.Status204NoContent)
-    .Produces<bool>(StatusCodes.Status404NotFound)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
     .WithName("UpdateUser")
     .WithTags("Updaters");
 
@@ -76,8 +71,8 @@ app.MapDelete("/users/{id}", async (IRepository<User> repository, int id) =>
         await repository.SaveAsync();
         return Results.NoContent();
     })
-    .Produces<bool>(StatusCodes.Status204NoContent)
-    .Produces<bool>(StatusCodes.Status404NotFound)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
     .WithName("DeleteUser")
     .WithTags("Deleters");
 
@@ -106,7 +101,7 @@ app.MapPost("/taskgroups", async (IRepository<TaskGroup> repository, [FromBody] 
     })
     .Accepts<TaskGroup>("application/json")
     .Produces<TaskGroup>(StatusCodes.Status201Created)
-    .Produces<bool>(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status400BadRequest)
     .WithName("CreateNewTaskGroups")
     .WithTags("Creators");
 
@@ -118,8 +113,8 @@ app.MapPut("/taskgroups", async (IRepository<TaskGroup> repository, [FromBody] T
         return Results.NoContent();
     })
     .Accepts<TaskGroup>("application/json")
-    .Produces<bool>(StatusCodes.Status204NoContent)
-    .Produces<bool>(StatusCodes.Status404NotFound)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
     .WithName("UpdateTaskGroup")
     .WithTags("Updaters");
 
@@ -130,8 +125,8 @@ app.MapDelete("/taskgroups/{id}", async (IRepository<TaskGroup> repository, int 
         await repository.SaveAsync();
         return Results.NoContent();
     })
-    .Produces<bool>(StatusCodes.Status204NoContent)
-    .Produces<bool>(StatusCodes.Status404NotFound)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
     .WithName("DeleteTaskGrpoup")
     .WithTags("Deleters");
 
@@ -182,8 +177,8 @@ app.MapPut("/taskitems", async (IRepository<TaskItem> repository, [FromBody] Tas
         return Results.NoContent();
     })
     .Accepts<TaskItem>("application/json")
-    .Produces<bool>(StatusCodes.Status204NoContent)
-    .Produces<bool>(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status400BadRequest)
     .WithName("UpdateTaskItem")
     .WithTags("Updaters");
 
@@ -194,8 +189,8 @@ app.MapDelete("/taskitems/{idUser}/{num}", async (IRepository<TaskItem> reposito
         await repository.SaveAsync();
         return Results.NoContent();
     })
-    .Produces<bool>(StatusCodes.Status204NoContent)
-    .Produces<bool>(StatusCodes.Status404NotFound)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
     .WithName("DeleteTaskItemByUserIdAndNumberCount")
     .WithTags("Deleters");
 
@@ -206,8 +201,8 @@ app.MapDelete("/taskitems/{idUser}", async (IRepository<TaskItem> repository, in
         await repository.SaveAsync();
         return Results.NoContent();
     })
-    .Produces<bool>(StatusCodes.Status204NoContent)
-    .Produces<bool>(StatusCodes.Status404NotFound)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
     .WithName("DeleteAllTaskItemsByUserId")
     .WithTags("Deleters");
 

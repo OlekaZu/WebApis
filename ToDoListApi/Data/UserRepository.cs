@@ -20,9 +20,10 @@ namespace ToDoListApi.Data
 
         public async Task<bool> InsertAsync(User entity)
         {
-            var check = await _context.Users.AnyAsync(u => u.Id == entity.Id
-                || u.UserName == entity.UserName);
-            if (!check)
+            var check = _context.Users.Count() == 0 ? true
+                : await _context.Users.AnyAsync(u => u.Id != entity.Id
+                && u.UserName != entity.UserName);
+            if (check)
                 await _context.Users.AddAsync(entity);
             return check;
         }

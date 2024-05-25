@@ -25,7 +25,7 @@
         public async Task<TaskItem?> GetBySpecifiedIdAsync(int userId, int specifiedId)
         {
             var list = await GetByIdAsync(userId);
-            if (list.Count <= specifiedId)
+            if (specifiedId > list.Count)
                 return null;
             else
                 return list[specifiedId - 1];
@@ -33,8 +33,9 @@
 
         public async Task<bool> InsertAsync(TaskItem entity)
         {
-            var check = await _context.TaskItems.AnyAsync(u => u.Id == entity.Id);
-            if (!check)
+            var check = _context.TaskItems.Count() == 0 ? true
+                : await _context.TaskItems.AnyAsync(u => u.Id != entity.Id);
+            if (check)
                 await _context.TaskItems.AddAsync(entity);
             return check;
         }
@@ -57,8 +58,7 @@
 
         public async Task<bool> DeleteByIdAsync(int userId)
         {
-            var taskItemsByUserId = await _context.TaskItems
-                .Where(x => x.Id == userId).ToListAsync();
+            var taskItemsByUserId = await GetByIdAsync(userId);
             if (taskItemsByUserId.Count == 0)
                 return false;
             _context.TaskItems.RemoveRange(taskItemsByUserId);
@@ -68,7 +68,7 @@
         public async Task<bool> DeleteBySpecifiedIdAsync(int userId, int specifiedId)
         {
             var taskItemsByUserId = await GetByIdAsync(userId);
-            if (taskItemsByUserId.Count <= specifiedId)
+            if (specifiedId > taskItemsByUserId.Count)
                 return false;
             _context.TaskItems.Remove(taskItemsByUserId[specifiedId - 1]);
             return true;

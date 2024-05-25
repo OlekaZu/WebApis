@@ -20,9 +20,10 @@
 
         public async Task<bool> InsertAsync(TaskGroup entity)
         {
-            var check = await _context.TaskGroups.AnyAsync(u => u.Id == entity.Id
-                || u.Name == entity.Name);
-            if (!check)
+            var check = _context.TaskGroups.Count() == 0 ? true
+                : await _context.TaskGroups.AnyAsync(u => u.Id != entity.Id
+                && u.Name != entity.Name);
+            if (check)
                 await _context.TaskGroups.AddAsync(entity);
             return check;
         }
