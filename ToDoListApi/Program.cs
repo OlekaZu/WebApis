@@ -10,6 +10,14 @@ builder.Services.AddDbContext<TasksDb>(options =>
 builder.Services.AddScoped<IRepository<User>, UserRepository>();
 builder.Services.AddScoped<IRepository<TaskGroup>, TaskGroupRepository>();
 builder.Services.AddScoped<IRepository<TaskItem>, TaskItemRepository>();
+<<<<<<< HEAD
+=======
+JsonSerializerOptions options = new()
+{
+    ReferenceHandler = ReferenceHandler.IgnoreCycles,
+    WriteIndented = true
+};
+>>>>>>> 409c708364e95a5fe2188cc6cbd5b73c71fafa2a
 
 var app = builder.Build();
 
