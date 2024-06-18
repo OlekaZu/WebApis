@@ -34,7 +34,7 @@ public class TaskItemRepository : IRepository<TaskItem>
     public async Task<bool> InsertAsync(TaskItem entity)
     {
         var check = _context.TaskItems.Count() == 0 ? true
-            : await _context.TaskItems.AnyAsync(u => u.Id != entity.Id);
+            : await _context.TaskItems.AllAsync(u => u.Id != entity.Id);
         if (check)
             await _context.TaskItems.AddAsync(entity);
         return check;

@@ -24,7 +24,7 @@ public class UserRepository : IRepository<User>, IAuth
     public async Task<bool> InsertAsync(User entity)
     {
         var check = _context.Users.Count() == 0 ? true
-            : await _context.Users.AnyAsync(u => u.Id != entity.Id
+            : await _context.Users.AllAsync(u => u.Id != entity.Id
             && u.UserName != entity.UserName);
         if (check)
             await _context.Users.AddAsync(entity);

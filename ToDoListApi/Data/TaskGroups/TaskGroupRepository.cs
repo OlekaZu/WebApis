@@ -21,7 +21,7 @@ public class TaskGroupRepository : IRepository<TaskGroup>
     public async Task<bool> InsertAsync(TaskGroup entity)
     {
         var check = _context.TaskGroups.Count() == 0 ? true
-            : await _context.TaskGroups.AnyAsync(u => u.Id != entity.Id
+            : await _context.TaskGroups.AllAsync(u => u.Id != entity.Id
             && u.Name != entity.Name);
         if (check)
             await _context.TaskGroups.AddAsync(entity);

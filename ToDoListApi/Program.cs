@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Builder;
+using Newtonsoft.Json;
 using ToDoListApi.Data;
 using ToDoListApi.Data.Auth;
 using ToDoListApi.Data.TaskGroups;
@@ -43,7 +43,52 @@ builder.Services.AddScoped<IRepository<TaskGroup>, TaskGroupRepository>();
 builder.Services.AddScoped<IRepository<TaskItem>, TaskItemRepository>();
 builder.Services.AddSingleton<ITokenService>(new TokenService());
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("user-profile", policy => policy
+            .RequireAuthenticatedUser()
+            .RequireAssertion(context =>
+                {
+                    if (context.Resource is not HttpContext http)
+                        return false;
+                    string userIdFromPath = http.Request.Path.Value!.Split('/').Last();
+                    return context.User.HasClaim(ClaimTypes.NameIdentifier, userIdFromPath)
+                        || context.User.HasClaim(ClaimTypes.Role, "admin");
+                })
+        );
+        options.AddPolicy("user-task", policy => policy
+            .RequireAuthenticatedUser()
+            .RequireAssertion(context =>
+            {
+                if (context.Resource is not HttpContext http)
+                    return false;
+                string userIdFromPath = http.Request.Path.Value!.Split('/').SkipLast(1).Last();
+                return context.User.HasClaim(ClaimTypes.NameIdentifier, userIdFromPath)
+                    || context.User.HasClaim(ClaimTypes.Role, "admin");
+            })
+        );
+        options.AddPolicy("user-task-update", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(context =>
+            {
+                if (context.Resource is not HttpContext http)
+                    return false;
+                TaskItem? taskItem;
+                JsonSerializer ser = new JsonSerializer();
+                using (var reader = new StreamReader(http.Request.Body))
+                {
+                    taskItem = (TaskItem?)ser.Deserialize(reader, typeof(TaskItem));
+                }
+                if (taskItem == null)
+                    return false;
+                string userIdFromPath = taskItem.DoerId.ToString();
+
+                return context.User.HasClaim(ClaimTypes.NameIdentifier, userIdFromPath)
+                    || context.User.HasClaim(ClaimTypes.Role, "admin");
+            })
+        );
+    });
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -79,7 +124,7 @@ app.MapGet("/users", [Authorize(Roles = "admin")] async (IRepository<User> repos
     .WithName("GetAllUsers")
     .WithTags("Getters");
 
-app.MapGet("/users/{id}", [Authorize] async (IRepository<User> repository, int id)
+app.MapGet("/users/{id}", [Authorize(Roles = "admin")] async (IRepository<User> repository, int id)
     => await repository.GetByIdAsync(id) is IEnumerable<User> users
     ? Results.Ok(users.First())
     : Results.NotFound(Array.Empty<User>()))
@@ -103,6 +148,9 @@ app.MapPost("/login", [AllowAnonymous] async (ITokenService tokenService, IAuth 
     .Produces(StatusCodes.Status401Unauthorized)
     .WithName("Login")
     .WithTags("Auth");
+
+app.MapPost("/logout", [Authorize] (ITokenService tokenService) => Results.NoContent())
+    .ExcludeFromDescription();
 
 app.MapPost("/users", [Authorize(Roles = "admin")] async (IRepository<User> repository, [FromBody] User user) =>
     {
@@ -211,7 +259,8 @@ app.MapGet("/taskitems/{idUser}", [Authorize] async (IRepository<TaskItem> repos
     .Produces<List<TaskItem>>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound)
     .WithName("GetTaskItemsByUserId")
-    .WithTags("Getters");
+    .WithTags("Getters")
+    .RequireAuthorization("user-profile");
 
 app.MapGet("/taskitems/{idUser}/{num}", [Authorize] async (IRepository<TaskItem> repository, int idUser, int num) =>
      {
@@ -221,7 +270,8 @@ app.MapGet("/taskitems/{idUser}/{num}", [Authorize] async (IRepository<TaskItem>
      .Produces<TaskItem>(StatusCodes.Status200OK)
      .Produces(StatusCodes.Status404NotFound)
      .WithName("GetTaskItemByUserIdAndNumberCount")
-     .WithTags("Getters");
+     .WithTags("Getters")
+     .RequireAuthorization("user-task");
 
 app.MapPost("/taskitems", [Authorize] async (IRepository<TaskItem> repository, [FromBody] TaskItem item) =>
     {
@@ -235,6 +285,7 @@ app.MapPost("/taskitems", [Authorize] async (IRepository<TaskItem> repository, [
     .Produces(StatusCodes.Status400BadRequest)
     .WithName("CreateNewTaskItem")
     .WithTags("Creators");
+//.RequireAuthorization("user-task-update");
 
 app.MapPut("/taskitems", [Authorize] async (IRepository<TaskItem> repository, [FromBody] TaskItem item) =>
     {
@@ -259,7 +310,8 @@ app.MapDelete("/taskitems/{idUser}/{num}", [Authorize] async (IRepository<TaskIt
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status404NotFound)
     .WithName("DeleteTaskItemByUserIdAndNumberCount")
-    .WithTags("Deleters");
+    .WithTags("Deleters")
+    .RequireAuthorization("user-task");
 
 app.MapDelete("/taskitems/{idUser}", [Authorize] async (IRepository<TaskItem> repository, int idUser) =>
     {
@@ -271,7 +323,8 @@ app.MapDelete("/taskitems/{idUser}", [Authorize] async (IRepository<TaskItem> re
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status404NotFound)
     .WithName("DeleteAllTaskItemsByUserId")
-    .WithTags("Deleters");
+    .WithTags("Deleters")
+    .RequireAuthorization("user-profile");
 
 app.UseHttpsRedirection();
 app.Run();
