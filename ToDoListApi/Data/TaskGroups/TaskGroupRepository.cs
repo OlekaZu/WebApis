@@ -12,8 +12,8 @@ public class TaskGroupRepository : IRepository<TaskGroup>
     public async Task<List<TaskGroup>> GetAllAsync()
         => await _context.TaskGroups.ToListAsync();
 
-    public async Task<List<TaskGroup>> GetByIdAsync(int id)
-        => await _context.TaskGroups.Where(u => u.Id == id).ToListAsync();
+    public async Task<TaskGroup?> GetByIdAsync(int id)
+        => await _context.TaskGroups.FirstOrDefaultAsync(u => u.Id == id);
 
     public async Task<TaskGroup?> GetBySpecifiedIdAsync(int id, int specifiedId)
         => await _context.TaskGroups.FirstOrDefaultAsync(u => u.Id == id);

@@ -15,21 +15,8 @@ public class TaskItemRepository : IRepository<TaskItem>
         .Include(i => i.Group)
         .ToListAsync();
 
-    public async Task<List<TaskItem>> GetByIdAsync(int userId)
-        => await _context.TaskItems
-        .Where(i => i.Doer != null && i.Doer.Id == userId)
-        .Include(i => i.Doer)
-        .Include(i => i.Group)
-        .ToListAsync();
-
-    public async Task<TaskItem?> GetBySpecifiedIdAsync(int userId, int specifiedId)
-    {
-        var list = await GetByIdAsync(userId);
-        if (specifiedId > list.Count)
-            return null;
-        else
-            return list[specifiedId - 1];
-    }
+    public async Task<TaskItem?> GetByIdAsync(int id)
+        => await _context.TaskItems.FirstOrDefaultAsync(i => i.Id == id);
 
     public async Task<bool> InsertAsync(TaskItem entity)
     {
@@ -56,15 +43,25 @@ public class TaskItemRepository : IRepository<TaskItem>
         return true;
     }
 
-    public async Task<bool> DeleteByIdAsync(int userId)
+    public async Task<bool> DeleteByIdAsync(int id)
     {
-        var taskItemsByUserId = await GetByIdAsync(userId);
-        if (taskItemsByUserId.Count == 0)
+        var taskFromDb = await _context.TaskItems.FindAsync(new object[] { id });
+        if (taskFromDb == null)
             return false;
-        _context.TaskItems.RemoveRange(taskItemsByUserId);
+        _context.TaskItems.Remove(taskFromDb);
         return true;
     }
 
+    public async Task SaveAsync() => await _context.SaveChangesAsync();
+
+    public async Task<TaskItem?> GetBySpecifiedIdAsync(int userId, int specifiedId)
+    {
+        var list = await GetByIdAsync(userId);
+        if (specifiedId > list.Count)
+            return null;
+        else
+            return list[specifiedId - 1];
+    }
     public async Task<bool> DeleteBySpecifiedIdAsync(int userId, int specifiedId)
     {
         var taskItemsByUserId = await GetByIdAsync(userId);
@@ -74,7 +71,6 @@ public class TaskItemRepository : IRepository<TaskItem>
         return true;
     }
 
-    public async Task SaveAsync() => await _context.SaveChangesAsync();
 
     private bool _disposed = false;
 

@@ -2,6 +2,7 @@
 
 public class UserRepository : IRepository<User>, IAuth
 {
+    private const string _defaultUserRole = "user";
     private readonly TasksDb _context;
 
     public UserRepository(TasksDb context)
@@ -13,16 +14,46 @@ public class UserRepository : IRepository<User>, IAuth
         .FirstOrDefaultAsync(u => u.UserName.Equals(input.UserName)
         && u.Password.Equals(input.Password));
 
+    public async Task<bool> RegisterNewUser(UserDto input)
+    {
+        var user = await GetUser(input);
+        if (user != null)
+            return false;
+        await _context.Users.AddAsync(new User
+        {
+            UserName = input.UserName,
+            Password = input.Password,
+            Role = _defaultUserRole
+        });
+        await SaveAsync();
+        return true;
+    }
+
+    public async Task<bool> UpdateUserPassword(int userId, string newPassword)
+    {
+        if (await GetByIdAsync(userId) is null)
+            return false;
+        _context.Users.ElementAt(userId).Password = newPassword;
+        await SaveAsync();
+        return true;
+    }
+
+    public async Task<bool> ChangeUserRole(int userId, string newRole)
+    {
+        if (await GetByIdAsync(userId) is null)
+            return false;
+        _context.Users.ElementAt(userId).Role = newRole;
+        await SaveAsync();
+        return true;
+    }
     public async Task<List<User>> GetAllAsync() => await _context.Users.ToListAsync();
 
-    public async Task<List<User>> GetByIdAsync(int id)
-        => await _context.Users.Where(u => u.Id == id).ToListAsync();
-
-    public async Task<User?> GetBySpecifiedIdAsync(int id, int specifiedId)
+    public async Task<User?> GetByIdAsync(int id)
         => await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
 
     public async Task<bool> InsertAsync(User entity)
     {
+        // !!проверить условие с Id влияет на вставку или нет
         var check = _context.Users.Count() == 0 ? true
             : await _context.Users.AllAsync(u => u.Id != entity.Id
             && u.UserName != entity.UserName);
@@ -50,9 +81,6 @@ public class UserRepository : IRepository<User>, IAuth
         _context.Users.Remove(userFromDb);
         return true;
     }
-
-    public async Task<bool> DeleteBySpecifiedIdAsync(int id, int specifiedId)
-        => await DeleteByIdAsync(id);
 
     public async Task SaveAsync() => await _context.SaveChangesAsync();
 
