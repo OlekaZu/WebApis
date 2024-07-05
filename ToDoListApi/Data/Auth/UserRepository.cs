@@ -25,7 +25,6 @@ public class UserRepository : IRepository<User>, IAuth
             Password = input.Password,
             Role = _defaultUserRole
         });
-        await SaveAsync();
         return true;
     }
 
@@ -34,7 +33,6 @@ public class UserRepository : IRepository<User>, IAuth
         if (await GetByIdAsync(userId) is null)
             return false;
         _context.Users.ElementAt(userId).Password = newPassword;
-        await SaveAsync();
         return true;
     }
 
@@ -43,9 +41,9 @@ public class UserRepository : IRepository<User>, IAuth
         if (await GetByIdAsync(userId) is null)
             return false;
         _context.Users.ElementAt(userId).Role = newRole;
-        await SaveAsync();
         return true;
     }
+
     public async Task<List<User>> GetAllAsync() => await _context.Users.ToListAsync();
 
     public async Task<User?> GetByIdAsync(int id)

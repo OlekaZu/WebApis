@@ -40,6 +40,7 @@ builder.Services.AddScoped<IRepository<User>, UserRepository>();
 builder.Services.AddScoped<IAuth, UserRepository>();
 builder.Services.AddScoped<IRepository<TaskGroup>, TaskGroupRepository>();
 builder.Services.AddScoped<IRepository<TaskItem>, TaskItemRepository>();
+builder.Services.AddScoped<IUserTaskItemRepository, TaskItemRepository>();
 builder.Services.AddSingleton<ITokenService>(new TokenService());
 
 builder.Services.AddAuthorization(options =>
@@ -50,21 +51,10 @@ builder.Services.AddAuthorization(options =>
                 {
                     if (context.Resource is not HttpContext http)
                         return false;
-                    string userIdFromPath = http.Request.Path.Value!.Split('/').Last();
-                    return context.User.HasClaim(ClaimTypes.NameIdentifier, userIdFromPath)
+                    var pathSplits = http.Request.Path.Value!.Split('/');
+                    return context.User.HasClaim(ClaimTypes.NameIdentifier, pathSplits[1])
                         || context.User.HasClaim(ClaimTypes.Role, "admin");
                 })
-        );
-        options.AddPolicy("user-task", policy => policy
-            .RequireAuthenticatedUser()
-            .RequireAssertion(context =>
-            {
-                if (context.Resource is not HttpContext http)
-                    return false;
-                var pathSplits = http.Request.Path.Value!.Split('/');
-                return context.User.HasClaim(ClaimTypes.NameIdentifier, pathSplits[1])
-                    || context.User.HasClaim(ClaimTypes.Role, "admin");
-            })
         );
     });
 
@@ -132,11 +122,12 @@ app.MapPost("/login", [AllowAnonymous] async (ITokenService tokenService, IAuth 
 app.MapPost("/logout", [Authorize] (ITokenService tokenService) => Results.NoContent())
     .ExcludeFromDescription();
 
-app.MapPost("/register", [AllowAnonymous] async (ITokenService tokenService, IAuth auth,
+app.MapPost("/register", [AllowAnonymous] async (IRepository<User> repository, IAuth auth,
     [FromBody] UserDto input) =>
     {
         if (!await auth.RegisterNewUser(input))
             return Results.BadRequest("User already exists.");
+        await repository.SaveAsync();
         return Results.RedirectToRoute("/login", input, true);
         // !! проверить работает ли с редириктом
         //var token = tokenService.BuildToken(builder.Configuration["Jwt:Key"]!,
@@ -149,10 +140,11 @@ app.MapPost("/register", [AllowAnonymous] async (ITokenService tokenService, IAu
     .WithName("Register")
     .WithTags("Auth");
 
-app.MapPost("/users", [Authorize(Roles = "admin")] async (IRepository<User> repository, [FromBody] User user) =>
+app.MapPost("/users", [Authorize(Roles = "admin")] async
+    (IRepository<User> repository, [FromBody] User user) =>
     {
-        if (await repository.InsertAsync(user) == false)
-            return Results.BadRequest();
+        if (!await repository.InsertAsync(user))
+            return Results.BadRequest("User already exists.");
         await repository.SaveAsync();
         return Results.Created($"/users/{user.Id}", user);
     })
@@ -162,9 +154,10 @@ app.MapPost("/users", [Authorize(Roles = "admin")] async (IRepository<User> repo
     .WithName("CreateNewUser")
     .WithTags("Creators");
 
-app.MapPut("/users", [Authorize(Roles = "admin")] async (IRepository<User> repository, [FromBody] User user) =>
+app.MapPut("/users", [Authorize(Roles = "admin")] async (IRepository<User> repository,
+    [FromBody] User user) =>
     {
-        if (await repository.UpdateAsync(user) == false)
+        if (!await repository.UpdateAsync(user))
             return Results.NotFound();
         await repository.SaveAsync();
         return Results.NoContent();
@@ -175,12 +168,14 @@ app.MapPut("/users", [Authorize(Roles = "admin")] async (IRepository<User> repos
     .WithName("UpdateFullUser")
     .WithTags("Updaters");
 
-app.MapPatch("/users/{id}", [Authorize] async (IAuth auth, int id, string newPassword) =>
-{
-    if (!await auth.UpdateUserPassword(id, newPassword))
-        return Results.NotFound("User not found.");
-    return Results.Ok($"Password was changed for user {id}.");
-})
+app.MapPatch("/users/{id}", [Authorize] async (IRepository<User> repository, IAuth auth,
+    int id, string newPassword) =>
+    {
+        if (!await auth.UpdateUserPassword(id, newPassword))
+            return Results.NotFound("User not found.");
+        await repository.SaveAsync();
+        return Results.Ok($"Password was changed for user {id}.");
+    })
     .Accepts<User>("application/json")
     .Produces(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound)
@@ -188,12 +183,14 @@ app.MapPatch("/users/{id}", [Authorize] async (IAuth auth, int id, string newPas
     .WithTags("Updaters")
     .RequireAuthorization("user-profile");
 
-app.MapPatch("/users/{id}", [Authorize(Roles = "admin")] async (IAuth auth, int id, string newRole) =>
-{
-    if (!await auth.ChangeUserRole(id, newRole))
-        return Results.NotFound("User not found.");
-    return Results.Ok($"Role was changed for user {id}.");
-})
+app.MapPatch("/users/{id}", [Authorize(Roles = "admin")] async (IRepository<User> repository,
+    IAuth auth, int id, string newRole) =>
+    {
+        if (!await auth.ChangeUserRole(id, newRole))
+            return Results.NotFound("User not found.");
+        await repository.SaveAsync();
+        return Results.Ok($"Role was changed for user {id}.");
+    })
     .Accepts<User>("application/json")
     .Produces(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound)
@@ -204,7 +201,7 @@ app.MapPatch("/users/{id}", [Authorize(Roles = "admin")] async (IAuth auth, int 
 app.MapDelete("/users/{id}", [Authorize] async (IRepository<User> repository, int id) =>
     {
         if (await repository.DeleteByIdAsync(id) == false)
-            return Results.NotFound();
+            return Results.NotFound("User not found.");
         await repository.SaveAsync();
         return Results.NoContent();
     })
@@ -231,9 +228,10 @@ app.MapGet("/taskgroups/{id}", [Authorize] async (IRepository<TaskGroup> reposit
     .WithName("GetTaskGrpoup")
     .WithTags("Getters");
 
-app.MapPost("/taskgroups", [Authorize(Roles = "admin")] async (IRepository<TaskGroup> repository, [FromBody] TaskGroup group) =>
+app.MapPost("/taskgroups", [Authorize(Roles = "admin")] async
+    (IRepository<TaskGroup> repository, [FromBody] TaskGroup group) =>
     {
-        if (await repository.InsertAsync(group) == false)
+        if (!await repository.InsertAsync(group))
             return Results.BadRequest();
         await repository.SaveAsync();
         return Results.Created($"/taskgroups/{group.Id}", group);
@@ -244,10 +242,11 @@ app.MapPost("/taskgroups", [Authorize(Roles = "admin")] async (IRepository<TaskG
     .WithName("CreateNewTaskGroups")
     .WithTags("Creators");
 
-app.MapPut("/taskgroups", [Authorize(Roles = "admin")] async (IRepository<TaskGroup> repository, [FromBody] TaskGroup group) =>
+app.MapPut("/taskgroups", [Authorize(Roles = "admin")] async
+    (IRepository<TaskGroup> repository, [FromBody] TaskGroup group) =>
     {
-        if (await repository.UpdateAsync(group) == false)
-            return Results.NotFound();
+        if (!await repository.UpdateAsync(group))
+            return Results.NotFound("Task group not found.");
         await repository.SaveAsync();
         return Results.NoContent();
     })
@@ -257,10 +256,11 @@ app.MapPut("/taskgroups", [Authorize(Roles = "admin")] async (IRepository<TaskGr
     .WithName("UpdateTaskGroup")
     .WithTags("Updaters");
 
-app.MapDelete("/taskgroups/{id}", [Authorize(Roles = "admin")] async (IRepository<TaskGroup> repository, int id) =>
+app.MapDelete("/taskgroups/{id}", [Authorize(Roles = "admin")] async
+    (IRepository<TaskGroup> repository, int id) =>
     {
-        if (await repository.DeleteByIdAsync(id) == false)
-            return Results.NotFound();
+        if (!await repository.DeleteByIdAsync(id))
+            return Results.NotFound("Task group not found.");
         await repository.SaveAsync();
         return Results.NoContent();
     })
@@ -282,38 +282,67 @@ app.MapGet("/taskitems/{id}", [Authorize(Roles = "admin")] async (IRepository<Ta
     : Results.NotFound("Item not found."))
     .Produces<List<TaskItem>>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound)
-    .WithName("GetTaskItemsById")
+    .WithName("GetTaskItemById")
     .WithTags("Getters");
 
-app.MapGet("/users/{idUser}/taskitems", [Authorize] async (IRepository<TaskItem> repository, int idUser, int num) =>
+app.MapGet("/users/{idUser}/taskitems", [Authorize] async (IUserTaskItemRepository repository,
+    int idUser) =>
      {
-         var res = await repository.GetBySpecifiedIdAsync(idUser, num);
-         return res is TaskItem item ? Results.Ok(item) : Results.NotFound();
+         var res = await repository.GetAllUserTaskItemsAsync(idUser);
+         return res.Count > 0 ? Results.Ok(res) : Results.NotFound(Array.Empty<TaskItem>());
      })
-     .Produces<TaskItem>(StatusCodes.Status200OK)
+     .Produces<List<TaskItem>>(StatusCodes.Status200OK)
      .Produces(StatusCodes.Status404NotFound)
      .WithName("GetAllTaskItemsForIdUser")
      .WithTags("Getters")
-     .RequireAuthorization("user-task");
+     .RequireAuthorization("user-profile");
 
-app.MapPost("/taskitems", [Authorize(Roles = "admin")] async (IRepository<TaskItem> repository, [FromBody] TaskItem item) =>
+app.MapGet("/users/{idUser}/taskitems/{posNum}", [Authorize] async (IUserTaskItemRepository repository,
+    int idUser, int posNum) =>
     {
-        if (await repository.InsertAsync(item) == false)
+        var res = await repository.GetUserTaskItemAsync(idUser, posNum);
+        return res is TaskItem item ? Results.Ok(item) : Results.NotFound("Task items not found.");
+    })
+     .Produces<TaskItem>(StatusCodes.Status200OK)
+     .Produces(StatusCodes.Status404NotFound)
+     .WithName("GetTaskItemForIdUserByPositionNumber")
+     .WithTags("Getters")
+     .RequireAuthorization("user-profile");
+
+app.MapPost("/taskitems", [Authorize(Roles = "admin")] async (IRepository<TaskItem> repository,
+    [FromBody] TaskItem item) =>
+    {
+        if (!await repository.InsertAsync(item))
             return Results.BadRequest();
         await repository.SaveAsync();
-        return Results.Created($"/taskitems/{item.Doer?.Id}", item);
+        return Results.Created($"/users/{item.Doer?.Id}/taskitems/{item.PositionNumber}", item);
     })
     .Accepts<TaskItem>("application/json")
     .Produces<TaskItem>(StatusCodes.Status201Created)
     .Produces(StatusCodes.Status400BadRequest)
     .WithName("CreateNewTaskItem")
-    .WithTags("Creators")
-.RequireAuthorization("user-task-update");
+    .WithTags("Creators");
 
-app.MapPut("/taskitems", [Authorize] async (IRepository<TaskItem> repository, [FromBody] TaskItem item) =>
+app.MapPost("/users/{idUser}/taskitems", [Authorize] async (IUserTaskItemRepository tasksRepository,
+    IRepository<TaskItem> repository, int idUser, [FromBody] TaskItem item) =>
     {
-        if (await repository.UpdateAsync(item) == false)
-            return Results.NotFound();
+        if (!await tasksRepository.InsertUserTaskItemAsync(idUser, item))
+            return Results.BadRequest();
+        await repository.SaveAsync();
+        return Results.Created($"/users/{item.Doer?.Id}/taskitems/{item.PositionNumber}", item);
+    })
+    .Accepts<TaskItem>("application/json")
+    .Produces<TaskItem>(StatusCodes.Status201Created)
+    .Produces(StatusCodes.Status400BadRequest)
+    .WithName("CreateNewTaskItemForIdUser")
+    .WithTags("Creators")
+    .RequireAuthorization("user-profile");
+
+app.MapPut("/taskitems", [Authorize(Roles = "admin")] async (IRepository<TaskItem> repository,
+    [FromBody] TaskItem item) =>
+    {
+        if (!await repository.UpdateAsync(item))
+            return Results.NotFound("Task item not found.");
         await repository.SaveAsync();
         return Results.NoContent();
     })
@@ -323,29 +352,60 @@ app.MapPut("/taskitems", [Authorize] async (IRepository<TaskItem> repository, [F
     .WithName("UpdateTaskItem")
     .WithTags("Updaters");
 
-app.MapDelete("/taskitems/{idUser}/{num}", [Authorize] async (IRepository<TaskItem> repository, int idUser, int num) =>
+app.MapPut("/users/{idUser}/taskitems", [Authorize] async (IUserTaskItemRepository tasksRepository,
+    IRepository<TaskItem> repository, int idUser, [FromBody] TaskItem item) =>
     {
-        if (await repository.DeleteBySpecifiedIdAsync(idUser, num) == false)
-            return Results.NotFound();
+        if (!await tasksRepository.UpdateUserTaskItemAsync(idUser, item))
+            return Results.NotFound("Task item not found.");
         await repository.SaveAsync();
         return Results.NoContent();
     })
+    .Accepts<TaskItem>("application/json")
     .Produces(StatusCodes.Status204NoContent)
-    .Produces(StatusCodes.Status404NotFound)
-    .WithName("DeleteTaskItemByUserIdAndNumberCount")
-    .WithTags("Deleters")
-    .RequireAuthorization("user-task");
+    .Produces(StatusCodes.Status400BadRequest)
+    .WithName("UpdateTaskItemForIdUser")
+    .WithTags("Updaters")
+    .RequireAuthorization("user-profile");
 
-app.MapDelete("/taskitems/{idUser}", [Authorize] async (IRepository<TaskItem> repository, int idUser) =>
+app.MapDelete("/taskitems/{id}", [Authorize(Roles = "admin")] async
+    (IRepository<TaskItem> repository, int id) =>
     {
-        if (await repository.DeleteByIdAsync(idUser) == false)
-            return Results.NotFound();
+        if (!await repository.DeleteByIdAsync(id))
+            return Results.NotFound("Task item not found.");
         await repository.SaveAsync();
         return Results.NoContent();
     })
     .Produces(StatusCodes.Status204NoContent)
     .Produces(StatusCodes.Status404NotFound)
-    .WithName("DeleteAllTaskItemsByUserId")
+    .WithName("DeleteTaskItemById")
+    .WithTags("Deleters");
+
+app.MapDelete("/users/{idUser}/taskitems", [Authorize] async
+    (IUserTaskItemRepository tasksRepository, IRepository<TaskItem> repository, int idUser) =>
+    {
+        if (!await tasksRepository.DeleteAllUserTaskItemsAsync(idUser))
+            return Results.NotFound("User haven't any task items.");
+        await repository.SaveAsync();
+        return Results.NoContent();
+    })
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
+    .WithName("DeleteAllTaskItemsForIdUser")
+    .WithTags("Deleters")
+    .RequireAuthorization("user-profile");
+
+app.MapDelete("/users/{idUser}/taskitems/{posNum}", [Authorize] async
+    (IUserTaskItemRepository tasksRepository, IRepository<TaskItem> repository, int idUser,
+    int posNum) =>
+    {
+        if (!await tasksRepository.DeleteUserTaskItemAsync(idUser, posNum))
+            return Results.NotFound("Task item not found.");
+        await repository.SaveAsync();
+        return Results.NoContent();
+    })
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces(StatusCodes.Status404NotFound)
+    .WithName("DeleteTaskItemForIdUserByPositionNumber")
     .WithTags("Deleters")
     .RequireAuthorization("user-profile");
 
