@@ -16,15 +16,17 @@ public class TaskItemRepository : IRepository<TaskItem>, IUserTaskItemRepository
         .ToListAsync();
 
     public async Task<TaskItem?> GetByIdAsync(int id)
-        => await _context.TaskItems.FirstOrDefaultAsync(i => i.Id == id);
+        => await _context.TaskItems
+        .Include(i => i.Doer)
+        .Include(i => i.Group)
+        .FirstOrDefaultAsync(i => i.Id == id);
 
-    public async Task<bool> InsertAsync(TaskItem entity)
+    public async Task<bool> InsertAsync(TaskItem taskItem)
     {
-        var check = _context.TaskItems.Count() == 0 ? true
-            : await _context.TaskItems.AllAsync(u => u.Id != entity.Id);
-        if (check)
-            await _context.TaskItems.AddAsync(entity);
-        return check;
+        if (await GetByIdAsync(taskItem.Id) != null)
+            return false;
+        await _context.TaskItems.AddAsync(taskItem);
+        return true;
     }
 
     public async Task<bool> UpdateAsync(TaskItem entity)
@@ -60,32 +62,31 @@ public class TaskItemRepository : IRepository<TaskItem>, IUserTaskItemRepository
         .Where(i => i.DoerId == idUser)
         .ToListAsync();
 
-    public async Task<TaskItem?> GetUserTaskItemAsync(int idUser, int posNum) =>
-        await _context.TaskItems.FirstOrDefaultAsync(i => i.DoerId == idUser && i.Id == posNum);
+    public async Task<TaskItem?> GetUserTaskItemAsync(int idUser, int idTask) =>
+        await _context.TaskItems.FirstOrDefaultAsync(i => i.DoerId == idUser && i.Id == idTask);
 
     public async Task<bool> InsertUserTaskItemAsync(int idUser, TaskItem taskItem)
     {
-        var listFromDb = await GetAllUserTaskItemsAsync(idUser);
-        if (listFromDb.Count != 0 && listFromDb.Any(x => x.PositionNumber == taskItem.PositionNumber))
+        if (taskItem.DoerId != idUser || await GetByIdAsync(taskItem.Id) != null)
             return false;
         _context.TaskItems.Add(taskItem);
         return true;
     }
 
-    public async Task<bool> UpdateUserTaskItemAsync(int idUser, TaskItem taskItem)
+    public async Task<bool> UpdateUserTaskItemAsync(int idUser, TaskItem entity)
     {
         var taskItemFromDb = await _context.TaskItems
-            .FirstOrDefaultAsync(i => i.DoerId == idUser && i.Id == taskItem.Id);
+            .FirstOrDefaultAsync(i => i.DoerId == idUser && i.Id == entity.Id);
         if (taskItemFromDb == null)
             return false;
-        taskItemFromDb.Name = taskItem.Name;
-        taskItemFromDb.Description = taskItem.Description;
-        taskItemFromDb.DoerId = taskItem.DoerId;
-        taskItemFromDb.TaskGroupId = taskItem.TaskGroupId;
-        taskItemFromDb.Begin = taskItem.Begin;
-        taskItemFromDb.End = taskItem.End;
-        taskItemFromDb.IsCompleted = taskItem.IsCompleted;
-        taskItemFromDb.Priority = taskItem.Priority;
+        taskItemFromDb.Name = entity.Name;
+        taskItemFromDb.Description = entity.Description;
+        taskItemFromDb.DoerId = entity.DoerId;
+        taskItemFromDb.TaskGroupId = entity.TaskGroupId;
+        taskItemFromDb.Begin = entity.Begin;
+        taskItemFromDb.End = entity.End;
+        taskItemFromDb.IsCompleted = entity.IsCompleted;
+        taskItemFromDb.Priority = entity.Priority;
         return true;
     }
 
@@ -98,9 +99,9 @@ public class TaskItemRepository : IRepository<TaskItem>, IUserTaskItemRepository
         return true;
     }
 
-    public async Task<bool> DeleteUserTaskItemAsync(int idUser, int posNum)
+    public async Task<bool> DeleteUserTaskItemAsync(int idUser, int idTask)
     {
-        var taskItemFromDb = await GetUserTaskItemAsync(idUser, posNum);
+        var taskItemFromDb = await GetUserTaskItemAsync(idUser, idTask);
         if (taskItemFromDb == null)
             return false;
         _context.TaskItems.Remove(taskItemFromDb);

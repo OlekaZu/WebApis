@@ -16,8 +16,8 @@ public class UserRepository : IRepository<User>, IAuth
 
     public async Task<bool> RegisterNewUser(UserDto input)
     {
-        var user = await GetUser(input);
-        if (user != null)
+        if (await _context.Users.FirstOrDefaultAsync(u => u.UserName.Equals(input.UserName)
+         || u.Password.Equals(input.Password)) is not null)
             return false;
         await _context.Users.AddAsync(new User
         {
@@ -30,17 +30,19 @@ public class UserRepository : IRepository<User>, IAuth
 
     public async Task<bool> UpdateUserPassword(int userId, string newPassword)
     {
-        if (await GetByIdAsync(userId) is null)
+        var userFromDb = await _context.Users.FindAsync(new object[] { userId });
+        if (userFromDb == null)
             return false;
-        _context.Users.ElementAt(userId).Password = newPassword;
+        userFromDb.Password = newPassword;
         return true;
     }
 
-    public async Task<bool> ChangeUserRole(int userId, string newRole)
+    public async Task<bool> UpdateUserRole(int userId, string newRole)
     {
-        if (await GetByIdAsync(userId) is null)
+        var userFromDb = await _context.Users.FindAsync(new object[] { userId });
+        if (userFromDb == null)
             return false;
-        _context.Users.ElementAt(userId).Role = newRole;
+        userFromDb.Role = newRole;
         return true;
     }
 
@@ -51,13 +53,11 @@ public class UserRepository : IRepository<User>, IAuth
 
     public async Task<bool> InsertAsync(User entity)
     {
-        // !!проверить условие с Id влияет на вставку или нет
-        var check = _context.Users.Count() == 0 ? true
-            : await _context.Users.AllAsync(u => u.Id != entity.Id
-            && u.UserName != entity.UserName);
-        if (check)
-            await _context.Users.AddAsync(entity);
-        return check;
+        if (_context.Users.Count() != 0 && await _context.Users.AnyAsync(u => u.Id == entity.Id
+            || u.UserName == entity.UserName))
+            return false;
+        await _context.Users.AddAsync(entity);
+        return true;
     }
 
     public async Task<bool> UpdateAsync(User entity)
