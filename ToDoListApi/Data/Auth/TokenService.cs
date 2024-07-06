@@ -23,6 +23,7 @@ public class TokenService : ITokenService
             Expires = DateTime.UtcNow.Add(_expiryTime),
             SigningCredentials = credentials
         };
+
         var tokenHandler = new JwtSecurityTokenHandler();
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);

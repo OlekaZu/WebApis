@@ -36,7 +36,7 @@ public class TasksDb : DbContext
         TaskGroup personal = new TaskGroup { Id = 3, Name = "Personal", Description = "Tasks refer to private life" };
 
         // init task items
-        TaskItem oneTask = new TaskItem
+        TaskItem oneTaskAnna = new TaskItem
         {
             Id = 1,
             Name = "English Studying",
@@ -49,48 +49,75 @@ public class TasksDb : DbContext
             Priority = TaskPriority.Medium
         };
 
-        TaskItem twoTask = new TaskItem
+        TaskItem twoTaskAnna = new TaskItem
         {
             Id = 2,
-            Name = "Finish Code",
-            Description = "Solve Issue 12",
+            Name = "Complete issue #12",
+            Description = "Create new interface, refactoring code",
             DoerId = anna.Id,
             TaskGroupId = work.Id,
-            Begin = new DateTime(2024, 6, 1, 9, 0, 0),
-            End = new DateTime(2024, 6, 1, 19, 0, 0),
+            Begin = new DateTime(2024, 6, 25, 10, 0, 0),
+            End = new DateTime(2024, 6, 30, 18, 0, 0),
             IsCompleted = false,
             Priority = TaskPriority.High
         };
 
-        TaskItem threeTask = new TaskItem
+        TaskItem threeTaskAnna = new TaskItem
         {
             Id = 3,
-            Name = "Homework",
-            Description = "Water flowers",
-            DoerId = victor.Id,
+            Name = "Clean the house",
+            Description = "Wash dishes and vacuum the house",
+            DoerId = anna.Id,
             TaskGroupId = personal.Id,
-            Begin = new DateTime(2024, 6, 1, 19, 0, 0),
-            End = new DateTime(2024, 6, 1, 19, 30, 0),
+            Begin = new DateTime(2024, 6, 26, 10, 0, 0),
+            End = new DateTime(2024, 6, 26, 17, 45, 0),
             IsCompleted = false,
             Priority = TaskPriority.Low
         };
 
-        TaskItem fourTask = new TaskItem
+        TaskItem oneTaskVictor = new TaskItem
         {
             Id = 4,
+            Name = "Solve Issue #1",
+            Description = "Learn algorythm and implement it",
+            DoerId = victor.Id,
+            TaskGroupId = work.Id,
+            Begin = new DateTime(2024, 6, 23, 9, 0, 0),
+            End = new DateTime(2024, 6, 27, 19, 50, 0),
+            IsCompleted = false,
+            Priority = TaskPriority.High
+        };
+
+        TaskItem twoTaskVictor = new TaskItem
+        {
+            Id = 5,
+            Name = "Homework",
+            Description = "Water flowers",
+            DoerId = victor.Id,
+            TaskGroupId = personal.Id,
+            Begin = new DateTime(2024, 6, 20, 7, 30, 0),
+            End = new DateTime(2024, 6, 20, 8, 0, 0),
+            IsCompleted = false,
+            Priority = TaskPriority.Medium
+        };
+
+        TaskItem oneTaskAndrew = new TaskItem
+        {
+            Id = 6,
             Name = "Complete Report",
-            Description = "Solve Issue 5",
+            Description = "Write report about new project and send it",
             DoerId = andrew.Id,
             TaskGroupId = work.Id,
             Begin = new DateTime(2024, 6, 1, 11, 0, 0),
             End = new DateTime(2024, 6, 1, 15, 30, 0),
             IsCompleted = false,
-            Priority = TaskPriority.High
+            Priority = TaskPriority.Medium
         };
 
         // add data to entities
         modelBuilder.Entity<User>().HasData(anna, victor, andrew);
         modelBuilder.Entity<TaskGroup>().HasData(study, work, personal);
-        modelBuilder.Entity<TaskItem>().HasData(oneTask, twoTask, threeTask, fourTask);
+        modelBuilder.Entity<TaskItem>().HasData(oneTaskAnna, twoTaskAnna, threeTaskAnna,
+            oneTaskVictor, twoTaskVictor, oneTaskAndrew);
     }
 }

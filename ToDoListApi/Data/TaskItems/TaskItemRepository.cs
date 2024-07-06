@@ -1,6 +1,6 @@
 ﻿namespace ToDoListApi.Data.TaskItems;
 
-public class TaskItemRepository : IRepository<TaskItem>
+public class TaskItemRepository : IRepository<TaskItem>, IUserTaskItemRepository
 {
     private readonly TasksDb _context;
 
@@ -15,29 +15,18 @@ public class TaskItemRepository : IRepository<TaskItem>
         .Include(i => i.Group)
         .ToListAsync();
 
-    public async Task<List<TaskItem>> GetByIdAsync(int userId)
+    public async Task<TaskItem?> GetByIdAsync(int id)
         => await _context.TaskItems
-        .Where(i => i.Doer != null && i.Doer.Id == userId)
         .Include(i => i.Doer)
         .Include(i => i.Group)
-        .ToListAsync();
+        .FirstOrDefaultAsync(i => i.Id == id);
 
-    public async Task<TaskItem?> GetBySpecifiedIdAsync(int userId, int specifiedId)
+    public async Task<bool> InsertAsync(TaskItem taskItem)
     {
-        var list = await GetByIdAsync(userId);
-        if (specifiedId > list.Count)
-            return null;
-        else
-            return list[specifiedId - 1];
-    }
-
-    public async Task<bool> InsertAsync(TaskItem entity)
-    {
-        var check = _context.TaskItems.Count() == 0 ? true
-            : await _context.TaskItems.AnyAsync(u => u.Id != entity.Id);
-        if (check)
-            await _context.TaskItems.AddAsync(entity);
-        return check;
+        if (await GetByIdAsync(taskItem.Id) != null)
+            return false;
+        await _context.TaskItems.AddAsync(taskItem);
+        return true;
     }
 
     public async Task<bool> UpdateAsync(TaskItem entity)
@@ -56,25 +45,68 @@ public class TaskItemRepository : IRepository<TaskItem>
         return true;
     }
 
-    public async Task<bool> DeleteByIdAsync(int userId)
+    public async Task<bool> DeleteByIdAsync(int id)
     {
-        var taskItemsByUserId = await GetByIdAsync(userId);
-        if (taskItemsByUserId.Count == 0)
+        var taskFromDb = await _context.TaskItems.FindAsync(new object[] { id });
+        if (taskFromDb == null)
             return false;
-        _context.TaskItems.RemoveRange(taskItemsByUserId);
-        return true;
-    }
-
-    public async Task<bool> DeleteBySpecifiedIdAsync(int userId, int specifiedId)
-    {
-        var taskItemsByUserId = await GetByIdAsync(userId);
-        if (specifiedId > taskItemsByUserId.Count)
-            return false;
-        _context.TaskItems.Remove(taskItemsByUserId[specifiedId - 1]);
+        _context.TaskItems.Remove(taskFromDb);
         return true;
     }
 
     public async Task SaveAsync() => await _context.SaveChangesAsync();
+
+    public async Task<List<TaskItem>> GetAllUserTaskItemsAsync(int idUser) =>
+        await _context.TaskItems
+        .Include(i => i.Group)
+        .Where(i => i.DoerId == idUser)
+        .ToListAsync();
+
+    public async Task<TaskItem?> GetUserTaskItemAsync(int idUser, int idTask) =>
+        await _context.TaskItems.FirstOrDefaultAsync(i => i.DoerId == idUser && i.Id == idTask);
+
+    public async Task<bool> InsertUserTaskItemAsync(int idUser, TaskItem taskItem)
+    {
+        if (taskItem.DoerId != idUser || await GetByIdAsync(taskItem.Id) != null)
+            return false;
+        _context.TaskItems.Add(taskItem);
+        return true;
+    }
+
+    public async Task<bool> UpdateUserTaskItemAsync(int idUser, TaskItem entity)
+    {
+        var taskItemFromDb = await _context.TaskItems
+            .FirstOrDefaultAsync(i => i.DoerId == idUser && i.Id == entity.Id);
+        if (taskItemFromDb == null)
+            return false;
+        taskItemFromDb.Name = entity.Name;
+        taskItemFromDb.Description = entity.Description;
+        taskItemFromDb.DoerId = entity.DoerId;
+        taskItemFromDb.TaskGroupId = entity.TaskGroupId;
+        taskItemFromDb.Begin = entity.Begin;
+        taskItemFromDb.End = entity.End;
+        taskItemFromDb.IsCompleted = entity.IsCompleted;
+        taskItemFromDb.Priority = entity.Priority;
+        return true;
+    }
+
+    public async Task<bool> DeleteAllUserTaskItemsAsync(int idUser)
+    {
+        var listFromDb = await GetAllUserTaskItemsAsync(idUser);
+        if (listFromDb.Count == 0)
+            return false;
+        _context.TaskItems.RemoveRange(listFromDb);
+        return true;
+    }
+
+    public async Task<bool> DeleteUserTaskItemAsync(int idUser, int idTask)
+    {
+        var taskItemFromDb = await GetUserTaskItemAsync(idUser, idTask);
+        if (taskItemFromDb == null)
+            return false;
+        _context.TaskItems.Remove(taskItemFromDb);
+        return true;
+    }
 
     private bool _disposed = false;
 
