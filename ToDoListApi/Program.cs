@@ -14,5 +14,8 @@ foreach (var api in allApis)
     api.RegisterEndPoints(app);
 }
 
+// Настраивает эндпоинт для проб доступности пода
+app.MapHealthChecks("/healthz");
+
 app.Run();
 
